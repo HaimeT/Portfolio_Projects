@@ -1,0 +1,259 @@
+---
+title: "Bike-Share Navigate Speedy Success"
+author: "Haimanot.T"
+date: "11/23/2021"
+output:
+  html_document: default
+  
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Case Study ##
+### How Does a Bike-Share Navigate Speedy Success? ###
+
+This analysis is based on the Divvy case study "'Sophisticated, Clear, and Polished’: Divvy and Data Visualization" written by Kevin Hartman found here [Link](https://artscience.blog/home/divvy-dataviz-case-study). The purpose of this script is to consolidate downloaded Divvy data into a single dataframe and then conduct simple analysis to help answer the key question: “In what ways do members and casual riders use Divvy bikes differently?”
+
+### Install required packages
+* tidyverse for data import and wrangling
+* lubridate for date functions
+* ggplot for visualization
+
+
+```{r loading packages and set work directory}
+library(tidyverse)  
+library(lubridate)  
+library(ggplot2)
+library(plyr)
+library(dplyr)
+library(docopt)
+getwd() #displays your working directory
+setwd("C:/Users/hamsw/OneDrive/Desktop/Portfolio/Google/Case Study 1/tripdata")
+```
+
+## STEP 1: COLLECT DATA ##
+
+### Upload Divvy datasets (csv files) here ###
+
+```{r upload datasets}
+tridata202011 <- read_csv("202011-divvy-tripdata.csv")
+tridata202012 <- read_csv("202012-divvy-tripdata.csv")
+tridata202101 <- read_csv("202101-divvy-tripdata.csv")
+tridata202102 <- read_csv("202102-divvy-tripdata.csv")
+tridata202103 <- read_csv("202103-divvy-tripdata.csv")
+tridata202104 <- read_csv("202104-divvy-tripdata.csv")
+tridata202105 <- read_csv("202105-divvy-tripdata.csv")
+tridata202106 <- read_csv("202106-divvy-tripdata.csv")
+tridata202107 <- read_csv("202107-divvy-tripdata.csv")
+tridata202108 <- read_csv("202108-divvy-tripdata.csv")
+tridata202109 <- read_csv("202109-divvy-tripdata.csv")
+tridata202110 <- read_csv("202110-divvy-tripdata.csv")
+```
+
+## STEP 2: WRANGLE DATA AND COMBINE INTO A SINGLE FILE ##
+
+### Compare column names for each of the files ###
+
+```{r Compare column names}
+colnames(tridata202011) 
+colnames(tridata202012)
+colnames(tridata202101)
+colnames(tridata202102)
+colnames(tridata202103)
+colnames(tridata202104)
+colnames(tridata202105) 
+colnames(tridata202106) 
+colnames(tridata202107)
+colnames(tridata202108)
+colnames(tridata202109) 
+colnames(tridata202110)
+```
+
+
+### Inspect the dataframes and look for incongruencies ###
+
+```{r Inspect the dataframes}
+str(tridata202011) 
+str(tridata202012)
+str(tridata202101)
+str(tridata202102)
+str(tridata202103)
+str(tridata202104)
+str(tridata202105) 
+str(tridata202106) 
+str(tridata202107)
+str(tridata202108)
+str(tridata202109) 
+str(tridata202110)
+```
+
+### Convert start_station_id and end_station_id in tridata202011  to character so that they can stack correctly ###
+```{r convert data types}
+tridata202011 <-  mutate(tridata202011, start_station_id = as.character(start_station_id), end_station_id =         as.character(end_station_id ))
+```
+
+### Stack individual month's data frames into one big data frame ###
+```{r bind individual datasets to year_tripdata}
+year_tripdata <- bind_rows(tridata202011,tridata202012 ,tridata202101,tridata202102 ,tridata202103 ,tridata202104,tridata202105,tridata202106, tridata202107,tridata202108,tridata202109,tridata202110) 
+```
+
+## STEP 3: CLEAN UP AND ADD DATA TO PREPARE FOR ANALYSIS ##
+
+### Inspect the new table that has been created ###
+
+```{r check the new data frame}
+colnames(year_tripdata)  ####List of column names
+nrow(year_tripdata)  ####How many rows are in data frame?
+dim(year_tripdata)  ####Dimensions of the data frame?
+head(year_tripdata)  ####See the first 6 rows of data frame.  Also tail(all_trips)
+str(year_tripdata)  ####See list of columns and data types (numeric, character, etc)
+summary(year_tripdata)  ####Statistical summary of data. Mainly for numeric
+```
+
+### There are a few problems we will need to fix: ###
+
+* 1, The data can only be aggregated at the ride-level, which is too granular. We will want to add some additional        columns of data -- such as day, month, year -- that provide additional opportunities to aggregate the data.
+
+* 2, We will want to add a calculated field for length of ride since the 2020Q1 data did not have the "tripduration"      column. We will add "ride_length" to the entire dataframe for consistency.
+
+* 3, There are some rides where tripduration shows up as negative, including several hundred rides where Divvy took       bikes out of circulation for Quality Control reasons. We will want to delete these rides.
+
+
+### seeing how many observations fall under each usertype ###
+```{r}
+table(year_tripdata$member_casual)
+```
+
+### Add columns that list the date, month, day, and year of each ride
+
+ This will allow us to aggregate ride data for each month, day, or year ... before completing these operations we could only aggregate at the ride level more on date formats in R found click here [Link](https://www.statmethods.net/input/dates.htm) 
+
+```{r add columns}
+year_tripdata$date <- as.Date(year_tripdata$started_at) #The default format is yyyy-mm-dd
+year_tripdata$month <- format(as.Date(year_tripdata$date), "%m")
+year_tripdata$day <- format(as.Date(year_tripdata$date), "%d")
+year_tripdata$year <- format(as.Date(year_tripdata$date), "%Y")
+year_tripdata$day_of_week <- format(as.Date(year_tripdata$date), "%A")
+```
+
+### Add a "ride_length" calculation to all_trips (in seconds) 
+click here [Link](https://stat.ethz.ch/R-manual/R-devel/library/base/html/difftime.html)
+
+```{r add ride_length column}
+year_tripdata$ride_length <- difftime(year_tripdata$ended_at,year_tripdata$started_at)
+```
+
+### Convert "ride_length" from Factor to numeric so we can run calculations on the data
+
+```{r convert ride_length to numeric}
+is.factor(year_tripdata$ride_length)
+year_tripdata$ride_length <- as.numeric(as.character(year_tripdata$ride_length))
+is.numeric(year_tripdata$ride_length)
+```
+
+### Remove "bad" data ###
+
+The dataframe includes a few hundred entries when bikes were taken out of docks and checked for quality by Divvy or ride_length was negative
+There are some NA values thru out the data frame as well which needs to work on
+
+### Remove missing data ###
+```{r}
+year_tripdata <- na.omit(year_tripdata)
+```
+
+### We will create a new version of the dataframe (v2) since data is being removed ### 
+
+Click [here](https://www.datasciencemadesimple.com/delete-or-drop-rows-in-r-with-conditions-2/)
+```{r}
+year_tripdata_v2 <- year_tripdata[!(year_tripdata$start_station_name == "HQ QR" | year_tripdata$ride_length<0),]
+```
+
+## STEP 4: CONDUCT DESCRIPTIVE ANALYSIS ##
+
+
+### Descriptive analysis on ride_length (all figures in seconds) ###
+
+```{r}
+mean(year_tripdata_v2$ride_length) #straight average (total ride length / rides)
+median(year_tripdata_v2$ride_length) #midpoint number in the ascending array of ride lengths
+max(year_tripdata_v2$ride_length) #longest ride
+min(year_tripdata_v2$ride_length) #shortest ride
+```
+
+```{r}
+aggregate(year_tripdata_v2$ride_length ~ year_tripdata_v2$member_casual, FUN = mean)
+aggregate(year_tripdata_v2$ride_length ~ year_tripdata_v2$member_casual, FUN = median)
+aggregate(year_tripdata_v2$ride_length ~ year_tripdata_v2$member_casual, FUN = max)
+aggregate(year_tripdata_v2$ride_length ~ year_tripdata_v2$member_casual, FUN = min)
+```
+
+### put days of the week in order. ###
+
+```{r}
+year_tripdata_v2$day_of_week <- ordered(year_tripdata_v2$day_of_week, levels=c("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"))
+```
+
+### See the average ride time by each day for members vs casual users ###
+
+```{r}
+aggregate(year_tripdata_v2$ride_length ~ year_tripdata_v2$member_casual + year_tripdata_v2$day_of_week, FUN = mean)
+```
+
+### Analyze ridership data by type and weekday ###
+
+```{r}
+  year_tripdata_v2 %>% mutate(weekday = wday(started_at, label = TRUE)) %>% #creates weekday field using wday()
+  group_by(member_casual, weekday) %>%  #groups by usertype and weekday
+  dplyr::summarise(number_of_rides = n()				#calculates the number of rides and average duration 
+  ,average_duration = mean(ride_length)) %>% 		# calculates the average duration
+  arrange(member_casual, weekday)					# sorts
+```
+### visualize the number of rides by user type ###
+
+```{r}
+ year_tripdata_v2 %>% 
+  mutate(weekday = wday(started_at, label = TRUE)) %>% 
+  group_by(member_casual, weekday) %>% 
+  dplyr::summarise(number_of_rides = n() ,average_duration = mean(ride_length)) %>% 
+  arrange(member_casual, weekday)  %>% 
+  ggplot(aes(x = weekday, y = number_of_rides, fill = member_casual)) +
+  geom_col(position = "dodge")
+```
+
+
+### create a visualization for average duration ###
+```{r}
+year_tripdata_v2 %>% 
+  mutate(weekday = wday(started_at, label = TRUE)) %>% 
+  group_by(member_casual, weekday) %>% 
+  dplyr::summarise(number_of_rides = n() ,average_duration = mean(ride_length)) %>% 
+  arrange(member_casual, weekday)  %>% 
+  ggplot(aes(x = weekday, y = average_duration, fill = member_casual)) +
+  geom_col(position = "dodge")
+```
+
+## STEP 5: EXPORT SUMMARY FILE FOR FURTHER ANALYSIS ##
+
+
+### Create a csv file that we will visualize in Excel, Tableau, or my presentation software
+
+```{r}
+counts <- aggregate(year_tripdata_v2$ride_length ~ year_tripdata_v2$member_casual + year_tripdata_v2$day_of_week, FUN = mean)
+```
+
+## STEP 6: SUMMERY
+
+There are some key takeaways from our analysis
+
+* Casual riders tend to ride for longer period of time 
+* The total count of members are more than casual riders
+* We see more rides in weekend than week days
+
+## STEP 7: CONCULUSIONS AND RECOMMENDATIONS 
+
+* - Focus on weekend events and use social media to advertise 
+* - Give discount for causal riders since they ride for longer period of time
+* - Promote causal riders to be came a member
+
